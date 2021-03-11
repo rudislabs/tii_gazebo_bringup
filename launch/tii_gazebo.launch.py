@@ -17,8 +17,8 @@ user_name = str(getlogin())
 # Default path to world file
 default_world_path = '/home/{:s}/git/tii_gazebo/worlds/abu_dhabi.world'.format(user_name)
 
-# Path to PX4 binary (in this case _sitl_rtps, could also be _sitl_default)
-px4_path = '/home/{:s}/git/PX4-Autopilot/build/px4_sitl_rtps'.format(user_name)
+# Path to PX4 binary (in this case _sitl_default, could also be _sitl_rtps)
+px4_path = '/home/{:s}/git/PX4-Autopilot/build/px4_sitl_default'.format(user_name)
 
 with open('/home/{:s}/git/tii_gazebo/scripts/gen_params.json'.format(user_name)) as json_file:
     models = json.load(json_file)["models"]
@@ -71,17 +71,17 @@ def generate_launch_description():
         # Path for PX4 binary storage
         sitl_output_path = '/tmp/{:s}'.format(model_name)
 
-        generate_args = '--base_model {:s} --sdf_version {:s} --mavlink_tcp_port {:s} \
-            --mavlink_udp_port {:s} --serial_enabled {:s} --serial_device {:s} \
-            --serial_baudrate {:s} --enable_lockstep {:s} --hil_mode {:s} \
-            --model_name {:s} --output_path {:s} --config_file {:s}'.format(
+        generate_args = '--base_model "{:s}" --sdf_version "{:s}" --mavlink_tcp_port "{:s}" \
+            --mavlink_udp_port "{:s}" --serial_enabled "{:s}" --serial_device "{:s}" \
+            --serial_baudrate "{:s}" --enable_lockstep "{:s}" --hil_mode "{:s}" \
+            --model_name "{:s}" --output_path "{:s}" --config_file "{:s}"'.format(
             base_model, sdf_version, mavlink_tcp_port, mavlink_udp_port, 
             serial_enabled, serial_device, serial_baudrate, 
-            senable_lockstep, hil_mode, model_name, 
+            enable_lockstep, hil_mode, model_name, 
             sdf_output_path, config_file).replace("\n","").replace("    ","")
 
-        generate_model = 'python3 /home/{:s}/git/tii_gazebo/scripts/jinja_model_gen.py {:s}'.format(
-            user_name, generate_args)
+        generate_model = ['python3 /home/{:s}/git/tii_gazebo/scripts/jinja_model_gen.py \
+            {:s}'.format(user_name, generate_args).replace("\n","").replace("    ","")]
 
         # Command to make storage folder
         sitl_folder_cmd = ['mkdir -p \"{:s}\"'.format(sitl_output_path)]
@@ -97,6 +97,14 @@ def generate_launch_description():
                 sitl_output_path, sitl_output_path,
                 px4_cmd).replace("\n","").replace("    ","")]
 
+        jinja_generate = ExecuteProcess(
+            cmd=generate_model,
+            name='jinja_gen_{:s}'.format(model_name),
+            shell=True,
+            output='screen')
+
+        ld.add_action(jinja_generate)
+
         # Make storage command
         make_sitl_folder = ExecuteProcess(
             cmd=sitl_folder_cmd,
@@ -109,17 +117,16 @@ def generate_launch_description():
         px4_posix = ExecuteProcess(
             cmd=xterm_px4_cmd,
             name='xterm_px4_nsh_{:s}'.format(model_name),
-            shell=True
-        )
+            shell=True)
     
         ld.add_action(px4_posix)
 
         # GAZEBO_MODEL_PATH has to be correctly set for Gazebo to be able to find the model
         spawn_entity = Node(package='gazebo_ros', executable='spawn_entity.py',
                         arguments=['-entity', '{:s}'.format(model_name),
-                            '-x', spawn_pose[0], '-y', spawn_pose[1], '-z', spawn_pose[2],
-                            '-R', spawn_pose[3], '-P', spawn_pose[4], '-Y', spawn_pose[5],
-                            '-file', '{:s}/{:s}'.format(sdf_output_path, model_name)],
+                            '-x', str(spawn_pose[0]), '-y', str(spawn_pose[1]), '-z', str(spawn_pose[2]),
+                            '-R', str(spawn_pose[3]), '-P', str(spawn_pose[4]), '-Y', str(spawn_pose[5]),
+                            '-file', '{:s}/{:s}.sdf'.format(sdf_output_path, model_name)],
                         name='spawn_{:s}'.format(model_name), output='screen')
 
         ld.add_action(spawn_entity)
